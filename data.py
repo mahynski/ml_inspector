@@ -35,18 +35,29 @@ class InspectData:
         return plt.gca()
     
     @staticmethod
-    def cluster_silhouette(X, y):
+    def cluster_silhouette(X, clustering):
         """
         Plot silhouette curves to assess the quality of clustering into a
         meaningful number of clusters in **classification tasks**. Ideal silhouette 
         coefficients are close to 1, meaning "tight" well-separated clusters.
         
-        **Because this is supervised this could introduce bias.  Be careful.**
-
         See Ch. 11 of "Python Machine Learning" by Raschka & Mirjalili.
+        
+        Example
+        -------
+        >>> km = KMeans(n_clusters=10,
+                        init='k-means++',
+                        n_init=10,
+                        random_state=0)
+        >>> ml_inspector.data.InspectData.cluster_silhouette(X, clustering=km)     
         """
         from matplotlib import cm
         from sklearn.metrics import silhouette_samples
+        from sklearn import clone
+        
+        # Clone clustering algorith, and predict clusters
+        est = clone(clustering, safe=False)
+        y = est.fit_predict(X)
 
         cluster_labels = np.unique(y)
         n_clusters = cluster_labels.shape[0]
@@ -68,7 +79,7 @@ class InspectData:
         silhouette_avg = np.mean(silhouette_vals)
         plt.axvline(silhouette_avg, color="red", linestyle="--") 
 
-        plt.yticks(yticks, cluster_labels + 1)
+        plt.yticks(yticks, cluster_labels)
         plt.ylabel('Cluster')
         plt.xlabel('Silhouette coefficient')
 
@@ -77,9 +88,9 @@ class InspectData:
         return plt.gca()
     
     @staticmethod
-    def cluster_collinear(X, feature_names=None, figsize=None, t=None, display=True):
+    def cluster_collinear(X, feature_names=None, figsize=None, t=None, display=True, figname=None):
         """
-        Use Ward clustering to cluster collinear features and select a single feature from each cluster.
+        Use Ward clustering to cluster collinear features and select a single feature from each macro-cluster.
         See https://scikit-learn.org/stable/auto_examples/inspection/plot_permutation_importance_multicollinear.html
 
         This can be used as a preprocessing step since it is unsupervised.
@@ -134,6 +145,8 @@ class InspectData:
             Ward clustering threshold to determine the number of clusters.
         display : bool
             Whether or not to visualize results.
+        figname : str or None
+            If display is True, can also save to this file.
 
         Returns
         -------
@@ -188,14 +201,20 @@ class InspectData:
             _ = ax2.set_yticklabels(dendro['ivl'])
             _ = ax2.set_title('Spearman Rank-Order Correlations')
 
-            fig.tight_layout()
+            if (figname != None):
+                plt.savefig(figname, dpi=300, bbox_inches='tight')
+            else:
+                fig.tight_layout()
 
         return selected_features, cluster_id_to_feature_ids
         
     @staticmethod
-    def pairplot(df, **kwargs):
+    def pairplot(df, figname=None, **kwargs):
         """
-        A pairplot of the data.
+        A pairplot of the data.  Best to use after dimensionality reduction has been performed,
+        e.g., using cluster_collinear() to select only certain features.  This can be helpful
+        to visualize how decorrelated the selected dimensions truly are.
+        
         See https://seaborn.pydata.org/generated/seaborn.pairplot.html.
         
         Parameters
@@ -215,3 +234,5 @@ class InspectData:
         >>> InspectData.pairplot(df, vars=df.columns[0:5], hue='target', diag_kind='auto')
         """
         sns.pairplot(df, **kwargs)
+        if (figname != None):
+            plt.savefig(figname, dpi=300, bbox_inches='tight')
