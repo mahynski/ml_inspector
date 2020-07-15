@@ -2,9 +2,141 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from baycomp import two_on_single
 
 # Resources:
 # https://christophm.github.io/interpretable-ml-book/
+
+class Compare:
+    def __init__(self):
+        pass
+
+    def repeated_kfold(pipe1, pipe2, X, y, n_repeats=3, k=5, random_state=0, 'stratify'=True):
+        """
+        Performed repeated k-fold cross validation to get scores.
+
+        Parameters
+        ----------
+        pipe1 : sklearn.pipeline.Pipeline or BaseEstimator
+            Any pipeline or estimator that implements the fit() and score() methods.
+        pipe2 : sklearn.pipeline.Pipeline or BaseEstimator
+            Pipeline to compare against.
+        X : ndarray
+            Array of features.
+        y : ndarray
+            Array of outputs to predict.
+        n_repeats : int
+            Number of times cross-validator needs to be repeated.
+        k : int
+            K-fold cross-validation to use.
+        random_state : int or RandomState instance
+            Controls the randomness of each repeated cross-validation instance.
+        stratify : bool
+            If True, use RepeatedStratifiedKFold - this is only valid for classification tasks.
+
+        Returns
+        -------
+        scores1, scores2
+            List of scores for each pipeline.
+        """
+        from sklearn.model_selection import RepeatedKFold, RepeatedStratifiedKFold
+        if (stratify):
+            rkf = RepeatedStratifiedKFold(n_splits=k, n_repeats=n_repeats, random_state=random_state)
+        else:
+            rkf = RepeatedKFold(n_splits=k, n_repeats=n_repeats, random_state=random_state)
+        
+        X = np.array(X)
+        y = np.array(y)
+
+        scores1 = []
+        scores2 = []
+        for train_index, test_index in rkf.split(X):
+            X_train, X_test = X[train_index], X[test_index]
+            y_train, y_test = y[train_index], y[test_index]
+            
+            pipe1.fit(X_train, y_train)
+            scores1.append(pipe1.score(X_test, y_test))
+
+            pipe2.fit(X_train, y_train)
+            scores2.append(pipe2.score(X_test, y_test))
+
+        return scores1, scores2
+
+    def corrected_t(scores1, scores2, n_repeats):
+        """
+        Performs 1-sided hypothesis testing to see if any difference in pipelines' peformances
+        are statisically significant using a correlated, paired t-test with the Nadeau & Bengio (2003)
+        correction. The test checks if the first pipeline is superior to the second using the alternative
+        hypothesis, H1: mean(scores1-scores2) > 0.
+
+        Notes
+        -----
+        Reject H0 (that pipelines are equally good) in favor of H1 (pipeline1 is better) if p < alpha, otherwise fail to reject H0 (not enough evidence to suggest they are different).
+        The formulation of this test is that pipeline1 has the best (average) performance or score of the two, and you want to check if that is statistically significant or not.
+
+        Parameters
+        ----------
+        scores1 : array-like
+            List of scores from pipeline 1.
+        scores2 : array-like
+            List of scores from pipeline 2.
+        n_repeats : int
+            Number of times cross-validator was repeated.
+
+        Returns
+        -------
+        p
+            P value
+        """
+        assert(len(scores1) == len(scores2)), 'scores must have the same overall length'
+        k_fold = len(scores1) // int(n_repeats)
+        n = k_fold*n_repeats
+        assert(n == len(scores1)), 'scores must be divisible by n_repeats'
+
+        rho = 1.0/k_fold
+        performance_diffs = np.array(scores1) - np.array(scores2) # H1: mu > 0
+        corrected_t = (np.mean(performance_diffs) - 0.0) / np.sqrt((1.0/n + rho/(1.0-rho))*(np.std(performance_diffs, ddof=1)**2))
+        
+        return 1.0 - scipy.stats.t.cdf(x=corrected_t, df=n-1) # 1-sided test
+
+
+    def bayesian_comparison(scores1, scores2, n_repeats, rope=0):
+        """
+        Performs Bayesian analysis to predict the probability that pipe(line)1 outperforms
+        pipe(line)2 based on repeated kfold cross validation results using a correlated t-test.
+
+        If prob[X] > 1.0 - alpha, then you make the decision that X is better.
+        If no prob's reach this threshold, make no decision about the super(infer)iority
+        of the pipelines relative to each other.
+
+        Notes
+        -----
+        See https://baycomp.readthedocs.io/en/latest/functions.html.
+
+        Parameters
+        ----------
+        scores1 : array-like
+            List of scores from each repeat of each CV fold for pipe1.
+        scores2 : array-like
+            List of scores from each repeat of each CV fold for pipe2.
+        n_repeats : int
+            Number of repetitions of cross validation.
+        rope : float
+            The width of the region of practical equivalence.
+
+        Returns
+        -------
+        probs
+            Tuple of (prob_1, p_equiv, prob_2)
+        """
+        scores1 = np.array(scores1).flatten()
+        scores2 = np.array(scores2).flatten()
+        probs = two_on_single(scores1, scores2, rope=rope, runs=n_repeats, names=None, plot=False)
+
+        if (rope == 0):
+            probs = np.array([probs[0], 0, probs[1]])
+        
+        return probs > (1.0-alpha), probs
 
 class InspectModel:
     def __init__(self):
