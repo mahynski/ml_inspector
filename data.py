@@ -207,6 +207,130 @@ class InspectData:
                 fig.tight_layout()
 
         return selected_features, cluster_id_to_feature_ids
+    
+    def minimize_cluster_label_entropy(cluster_id_to_feature_ids, lookup, X, cutoff_factor=0.9,
+                                  n_restarts=1, max_iters=1000, seed=0, early_stopping=-1, T=0.25):
+        """
+        Minimize the entropy of selected features based on hierarchical clustering according to 
+        some labeling scheme that categorizes them.  For example, lookup('mercury') = 'Heavy Metal'.
+        This routine performs Metropolis Monte Carlo to minimize the entropy of the system defined
+        by the categories of all features selected from each cluster.  Features are only considered
+        viable if they appear in the input X DataFrame (not NaN values) at least 100*cutoff_factor
+        percent of the time.
+        
+        This can be used to improve selections made at random by cluster_collinear().
+
+        Example
+        -------
+        >>> selected_features, cluster_id_to_feature_ids = cluster_collinear(X, feature_names=feature_names, display=False)
+        >>> better_features = minimize_cluster_label_entropy(cluster_id_to_feature_ids, lookup, X)
+
+        Parameters
+        ----------
+        cluster_id_to_feature_ids : defaultdict(list)
+            Dictinary of {cluster id: features that belong}
+        lookup : callable
+            A function that is capable of looking up a feature and returning a designation or class for it.
+            For example lookup('mercury') = 'Heavy Metal'.
+        X : pandas.DataFrame
+            DataFrame of the features (columns).
+        cutoff_factor : float
+            Fraction of times a feature must be appear in X (not be NaN) to be considered as a viable feature.
+        n_restarts : int
+            Number of times to restart the Monte Carlo (annealing).
+        max_iters : int
+            Maximum number of MC perturbations to make during a run.
+        seed : int
+            RNG seed to numpy.random.seed(seed).
+        early_stopping : int
+            If the best (lowest entropy) solution hasn't changed in this many steps, stop the MC.
+        T : float
+            Fictitious "temperature" that controls acceptance criteria.
+
+        Returns
+        -------
+        best_choices
+            List of features to use.
+        """
+        import copy
+        np.random.seed(seed)
+
+        if (early_stopping <= 0):
+            early_stopping = max_iters + 1
+
+        # Determine which features are "safe" to use on the basis of a minimum number of observations
+        safe_features = {}
+        counts = lambda f: X.shape[0] - X[f].isnull().isum() # X is the pandas DataFrame
+        cutoff = int(X.shape[0]*cutoff_factor) 
+        for cid, features in cluster_id_to_feature_ids.items():
+            safe_features[cid] = [f for f in features if counts(f) > cutoff]
+            assert(len(safe_features) > 0), 'cutoff is too severe, no features allowed in cluster {}'.format(cid)
+
+
+        # Look up all features to make sure lookup() works
+        categories = set()
+        for k,features_in in safe_features.items():
+            try:
+                categories = categories.union(set([lookup(f) for f in features_in]))
+            except Exception as e:
+                raise ValueError('Unable to lookup({}), check lookup function'.format(features_in))
+
+        def random_choices(safe_features):
+            choice_idx = {}
+            for cid, features in safe_features.items(): 
+                choice_idx[cid] = np.random.randint(len(features))
+            return choice_idx
+
+        def perturb(choice_idx, safe_features):
+            new_choice_idx = copy.copy(choice_idx)
+            cid = np.random.randint(len(new_choice_idx))
+            new_choice_idx[cid] = np.random.randint(len(safe_features[cid]))
+            return new_choice_idx
+
+        def entropy(choices):
+            cats, counts = np.unique([lookup(v) for v in choices.values()], return_counts=True)
+            p = counts / np.sum(counts, dtype=np.float64)
+            return np.sum(-p*np.log(p))
+
+        def convert(choice_idx, safe_features):
+            choices = {}
+            for cid, idx in choice_idx.items():
+                choices[cid] = safe_features[cid][idx]
+            return choices
+
+        # Try to minimize the entropy of the cluster categories
+        best_overall = (np.inf, None)
+        for i in range(n_restarts):
+            # 1. Make a random selection of features
+            choice_idx = random_choices(safe_features)
+            S_curr = entropy(convert(choice_idx, safe_features))
+
+            # 2. Perform MC to "anneal"
+            best = (S_curr, choice_idx)
+            counter = 0
+            for j in range(max_iters):
+                new_choice_idx = perturb(choice_idx, safe_features)
+                S_new = entropy(convert(new_choice_idx, safe_features))
+                if (np.random.random() < np.exp(-(S_new-S_curr)/T)):
+                    # Accept move, always move down in entropy, but up stochastically
+                    choice_idx = new_choice_idx
+                    S_curr = S_new
+                    if (S_curr < best[0]):
+                        best = (S_curr, choice_idx)
+                        counter = 0 # Reset time since last update
+                    else:
+                        counter += 1
+                else:
+                    counter += 1
+
+                if (counter >= early_stopping): # Stop if we haven't found something better in a while
+                    break
+
+            # 3. Compare across restarts
+            if best[0] < best_overall[0]:
+                best_overall = best
+
+        return list(convert(best_overall[1], safe_features).values())
         
     @staticmethod
     def pairplot(df, figname=None, **kwargs):
