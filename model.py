@@ -11,7 +11,7 @@ class Compare:
     def __init__(self):
         pass
 
-    def repeated_kfold(pipe1, pipe2, X, y, n_repeats=3, k=5, random_state=0, 'stratify'=True):
+    def repeated_kfold(pipe1, pipe2, X, y, n_repeats=3, k=5, random_state=0, stratify=True):
         """
         Performed repeated k-fold cross validation to get scores.
 
@@ -408,7 +408,8 @@ class InspectModel:
         return results
     
     @staticmethod
-    def kernelSHAP(model, X, use_probabilities=False, nsamples='auto', l1_reg=0.0, link='identity'):
+    def kernelSHAP(model, X, use_probabilities=False, nsamples='auto', l1_reg=0.0, link='identity',
+                  k_means=0):
         """
         SHAP (SHapley Additive exPlanations) is a way of estimating Shapley values.
         
@@ -502,8 +503,8 @@ class InspectModel:
             implemented.
         X : pandas.DataFrame or ndarray
             Generally X_test is advised.  Use only if X.shape[1] < 1000 to complete in a < 1 hr if < 20 features.
-            Using less nsamples can also accelerate instead of using smaller X - shap.SamplingExplainer is 
-            another alternative altogether.
+            Using less nsamples can also accelerate instead of using smaller X - also consider using k_means to 
+            summarize.  You can also consider samplingSHAP instead for large datasets.
         use_probabilities : bool
             Use predict_proba() for model - this should only be used for classification tasks.
         nsamples : int or str
@@ -514,8 +515,15 @@ class InspectModel:
         link : str
             Link function to match feature importance values to the model output.  See ``shap.KernelExplainer``.
             Best to use 'logit' when use_probabilities=True, and 'identity' when use_probabilities=False.
+        k_means : int
+            If > 0, use KMeans to summarize the dataset which can greatly accelerate the calculation at the cost
+            of accuracy.  This summarizes a dataset with k_means samples weighted by the number of data points they
+            each represent.
         """
         import shap
+        
+        if (k_means > 0):
+            X = shap.kmeans(X, k_means)
         
         explainer = shap.KernelExplainer(model=(model.predict_proba if use_probabilities else model.predict),
                                          data=X, 
@@ -578,9 +586,64 @@ class InspectModel:
         return explainer, shap_values, interaction_values
         
     @staticmethod
-    def samplingSHAP():
-        """ Alternative to KernelShap """
-        raise NotImplementedError
+    def samplingSHAP(model, X, background=None, use_probabilities=False, nsamples='auto', l1_reg=0.0,
+                  k_means=0):
+        """ 
+        Alternative to KernelShap.  From shap documentation: "This is an extension of the Shapley 
+        sampling values explanation method (aka. IME) SamplingExplainer computes SHAP values under 
+        the assumption of feature independence and is an extension of the algorithm proposed in 
+        "An Efficient Explanation of Individual Classifications using Game Theory", Erik Strumbelj, 
+        Igor Kononenko, JMLR 2010. It is a good alternative to KernelExplainer when you want to use 
+        a large background set (as opposed to a single reference value for example)."
+ 
+        See ``shap.SamplingExplainer`` for more details.
+        
+        Parameters
+        ----------
+        model : BaseEstimator
+            A fitted sklearn (or other supported) model, with a predict() and/or predict_proba() method 
+            implemented.
+        X : pandas.DataFrame or ndarray
+            Data to explain.
+        background : pandas.DataFrame or ndarray
+            From shap documentation: ``The background dataset to use for integrating out features. To determine the impact
+            of a feature, that feature is set to "missing" and the change in the model output
+            is observed. Since most models aren't designed to handle arbitrary missing data at test
+            time, we simulate "missing" by replacing the feature with the values it takes in the
+            background dataset. So if the background dataset is a simple sample of all zeros, then
+            we would approximate a feature being missing by setting it to zero. Unlike the
+            KernelExplainer this data can be the whole training set, even if that is a large set. This
+            is because SamplingExplainer only samples from this background dataset.''
+            If set to None (default) this uses X as the background also.
+        use_probabilities : bool
+            Use predict_proba() for model - this should only be used for classification tasks.
+        nsamples : int or str
+            Number of samples to use when computing shap values.  See ``shap.KernelExplainer.shap_values``.
+        l1_reg : float
+            Strength of l1 regularization to use computing shap values. See ``shap.KernelExplainer.shap_values``.
+            Default of 0 does not do regularization since I'm not sure this computes valid Shapley values.
+        k_means : int
+            If > 0, use KMeans to summarize the dataset which can greatly accelerate the calculation at the cost
+            of accuracy.  This summarizes a dataset with k_means samples weighted by the number of data points they
+            each represent.
+        """
+        import shap
+        
+        if (k_means > 0):
+            X = shap.kmeans(X, k_means)
+            
+        if (background == None):
+            background = X
+        
+        explainer = shap.SamplingExplainer(model=(model.predict_proba if use_probabilities else model.predict),
+                                         data=background
+                                        )
+        shap_values = explainer.shap_values(X, 
+                                            nsamples=nsamples, 
+                                            l1_reg=l1_reg, 
+                                           )
+        
+        return explainer, shap_values
         
     @staticmethod
     def deepSHAP():

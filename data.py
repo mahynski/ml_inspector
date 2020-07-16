@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import tqdm
 
 class InspectData:
     def __init__(self):
@@ -254,13 +255,29 @@ class InspectData:
         """
         import copy
         np.random.seed(seed)
+        
+        # Python's default behavior is specify clusters starting from 1 not 0, so change that
+        if (
+            np.all(sorted(cluster_id_to_feature_ids.keys()) == np.arange(1, 1+len(cluster_id_to_feature_ids)))
+           ):
+            new_ids = copy.copy(cluster_id_to_feature_ids)
+            for k,v in cluster_id_to_feature_ids.items():
+                new_ids[k-1] = v
+            cluster_id_to_feature_ids = new_ids
+        elif (
+            np.all(sorted(cluster_id_to_feature_ids.keys()) == np.arange(len(cluster_id_to_feature_ids)))
+        ):
+            pass
+        else:
+            raise Exception('Cluster ID ordering not understood')
+            
 
         if (early_stopping <= 0):
             early_stopping = max_iters + 1
 
         # Determine which features are "safe" to use on the basis of a minimum number of observations
         safe_features = {}
-        counts = lambda f: X.shape[0] - X[f].isnull().isum() # X is the pandas DataFrame
+        counts = lambda f: X.shape[0] - X[f].isnull().sum() # X is the pandas DataFrame
         cutoff = int(X.shape[0]*cutoff_factor) 
         for cid, features in cluster_id_to_feature_ids.items():
             safe_features[cid] = [f for f in features if counts(f) > cutoff]
@@ -300,7 +317,7 @@ class InspectData:
 
         # Try to minimize the entropy of the cluster categories
         best_overall = (np.inf, None)
-        for i in range(n_restarts):
+        for i in tqdm.tqdm(range(n_restarts), desc='Restarts'):
             # 1. Make a random selection of features
             choice_idx = random_choices(safe_features)
             S_curr = entropy(convert(choice_idx, safe_features))
@@ -308,7 +325,7 @@ class InspectData:
             # 2. Perform MC to "anneal"
             best = (S_curr, choice_idx)
             counter = 0
-            for j in range(max_iters):
+            for j in tqdm.tqdm(range(max_iters), desc='MC Steps'):
                 new_choice_idx = perturb(choice_idx, safe_features)
                 S_new = entropy(convert(new_choice_idx, safe_features))
                 if (np.random.random() < np.exp(-(S_new-S_curr)/T)):
@@ -329,8 +346,19 @@ class InspectData:
             # 3. Compare across restarts
             if best[0] < best_overall[0]:
                 best_overall = best
+                
+        # 4. Go over list and perform final optimization, choosing alternatives of the same class
+        # that were the MOST often measured, not just AT LEAST some minimum.
+        final = {}
+        for cid, feat in convert(best_overall[1], safe_features).items():
+            best_idx = sorted([(i, counts(f)) for i,f in enumerate(safe_features[cid]) if lookup(feat) == lookup(f)], 
+                                key=lambda x:x[1], 
+                                reverse=True)[0][0]
+            final[cid] = safe_features[cid][best_idx]
+            
+                
 
-        return list(convert(best_overall[1], safe_features).values())
+        return list(final.values())
         
     @staticmethod
     def pairplot(df, figname=None, **kwargs):
