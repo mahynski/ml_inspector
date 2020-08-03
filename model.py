@@ -411,11 +411,13 @@ class InspectModel:
     def kernelSHAP(model, X, use_probabilities=False, nsamples='auto', l1_reg=0.0, link='identity',
                   k_means=0):
         """
-        SHAP (SHapley Additive exPlanations) is a way of estimating Shapley values.
+        Kernel SHAP (SHapley Additive exPlanations) is a way of estimating Shapley values using regression.
         
         Shapley values themselves are feature importances for linear models in the presence of multicollinearity.
-        However, it seems multicollinearity is still a problem.  TreeSHAP gets around this, but has issues with
-        sometimes causing unintuitive results.
+        The importance of a feature is computed by adding to all subsets of coalitions of other features; when
+        one or more collinear features are present, a features impact would be small, but there are lots of subsets
+        where those collinear features are absent from the initial coalition, thus capturing (to some extent) this
+        effect.
         
         As in PFI, it is best to try to remove correlated features first using hierarchical clustering; this will 
         make things easier computationally anyway.
@@ -439,24 +441,7 @@ class InspectModel:
         
         Be careful to interpret the Shapley value correctly: The Shapley value is the average contribution of a 
         feature value to the prediction in different coalitions. The Shapley value is NOT the difference in 
-        prediction when we would remove the feature from the model.
-        
-        Like many other permutation-based interpretation methods, the Shapley value method suffers from inclusion 
-        of unrealistic data instances when features are correlated. To simulate that a feature value is missing 
-        from a coalition, we marginalize the feature. This is achieved by sampling values from the feature's 
-        marginal distribution. This is fine as long as the features are independent. When features are dependent, 
-        then we might sample feature values that do not make sense for this instance. But we would use those to 
-        compute the feature's Shapley value. To the best of my knowledge, there is no research on what that means 
-        for the Shapley values, nor a suggestion on how to fix it. One solution might be to permute correlated 
-        features together and get one mutual Shapley value for them. Or the sampling procedure might have to be 
-        adjusted to account for dependence of features.
-        
-        KernelSHAP therefore suffers from the same problem as all permutation-based interpretation methods. The 
-        estimation puts too much weight on unlikely instances. Results can become unreliable. But it is necessary 
-        to sample from the marginal distribution. If the absent feature values would be sampled from the 
-        conditional distribution, then the resulting values are no longer Shapley values. The resulting values 
-        would violate the Shapley axiom of Dummy, which says that a feature that does not contribute to the outcome 
-        should have a Shapley value of zero.''
+        prediction when we would remove the feature from the model.''
         
         - https://christophm.github.io/interpretable-ml-book/shap.html
         
@@ -466,7 +451,7 @@ class InspectModel:
         >>> import shap, sklearn
         >>> shap.initjs() # load JS visualization code to notebook
         >>> probability = True
-        >>> link = 'logit' # Better for models that return probabilities
+        >>> link = 'logit' # Often better for models that return probabilities
         >>> X_train, X_test, Y_train, Y_test = train_test_split(*shap.datasets.iris(), test_size=0.2, random_state=0)
         >>> model = sklearn.svm.SVC(kernel='rbf', probability=probability)
         >>> model.fit(X_train, Y_train)
@@ -514,7 +499,9 @@ class InspectModel:
             Default of 0 does not do regularization since I'm not sure this computes valid Shapley values.
         link : str
             Link function to match feature importance values to the model output.  See ``shap.KernelExplainer``.
-            Best to use 'logit' when use_probabilities=True, and 'identity' when use_probabilities=False.
+            Generally best to use 'logit' when use_probabilities=True, and 'identity' when use_probabilities=False;
+            however, these examples do not. (1) https://slundberg.github.io/shap/notebooks/Iris%20classification%20with%20scikit-learn.html,
+            (2)  https://slundberg.github.io/shap/notebooks/Census%20income%20classification%20with%20scikit-learn.html.
         k_means : int
             If > 0, use KMeans to summarize the dataset which can greatly accelerate the calculation at the cost
             of accuracy.  This summarizes a dataset with k_means samples weighted by the number of data points they
@@ -539,7 +526,10 @@ class InspectModel:
     @staticmethod
     def treeSHAP(model, X, approximate=False, check_additivity=True):
         """
-        A specialized (faster) implementation of kernelSHAP for tree-based models.
+        A specialized (faster) implementation of kernelSHAP for tree-based models that is EXACT, not an approximation,
+        of the SHapley values.
+        
+        See Lundberg et al. "From local explanations to global understanding with explainable AI for trees" Nat. Mach. Intell. (2020)
         
         Example
         -------
@@ -595,6 +585,11 @@ class InspectModel:
         "An Efficient Explanation of Individual Classifications using Game Theory", Erik Strumbelj, 
         Igor Kononenko, JMLR 2010. It is a good alternative to KernelExplainer when you want to use 
         a large background set (as opposed to a single reference value for example)."
+        
+        It is important to note that this approximation method of Shapley values requires the assumption of 
+        feature independence; furthermore, kernelSHAP is allegedly more computationally efficient. 
+        
+        - Lundberg & Lee "A unified approach to interpreting model predictions" NIPS (2017)
  
         See ``shap.SamplingExplainer`` for more details.
         
