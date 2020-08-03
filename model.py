@@ -408,7 +408,7 @@ class InspectModel:
         return results
     
     @staticmethod
-    def kernelSHAP(model, X, use_probabilities=False, nsamples='auto', l1_reg=0.0, link='identity',
+    def kernelSHAP(model, X_train, X_test, use_probabilities=False, nsamples='auto', l1_reg=0.0, link='identity',
                   k_means=0):
         """
         Kernel SHAP (SHapley Additive exPlanations) is a way of estimating Shapley values using regression.
@@ -455,7 +455,7 @@ class InspectModel:
         >>> X_train, X_test, Y_train, Y_test = train_test_split(*shap.datasets.iris(), test_size=0.2, random_state=0)
         >>> model = sklearn.svm.SVC(kernel='rbf', probability=probability)
         >>> model.fit(X_train, Y_train)
-        >>> explainer, shap_values = InspectModel.kernelSHAP(model, X_test, use_probabilities=probability, link=link)
+        >>> explainer, shap_values = InspectModel.kernelSHAP(model, X_train, X_test, use_probabilities=probability, link=link)
         >>> # visualize the first prediction's explanation (use matplotlib=True to avoid Javascript, but JS is more interactive)
         >>> shap.force_plot(explainer.expected_value[0], shap_values[0][0,:], X_test.iloc[0,:], # Just 1 instance for first (Setosa) class
         ...                 link=link, matplotlib=False)
@@ -471,7 +471,7 @@ class InspectModel:
         >>> X,y = shap.datasets.boston()
         >>> model = sklearn.ensemble.RandomForestRegressor()
         >>> model.fit(X, y) 
-        >>> explainer, shap_values = InspectModel.kernelSHAP(model, X, nsamples=100)
+        >>> explainer, shap_values = InspectModel.kernelSHAP(model, X, X, nsamples=100)
         >>> # visualize the first prediction's explanation (use matplotlib=True to avoid Javascript, but JS is more interactive)
         >>> shap.force_plot(explainer.expected_value, shap_values[0,:], X.iloc[0,:]) # Just 1 instance
         >>> shap.force_plot(explainer.expected_value, shap_values, X) # All instances, rotated 90 degrees and stacked
@@ -486,10 +486,11 @@ class InspectModel:
         model : BaseEstimator
             A fitted sklearn (or other supported) model, with a predict() and/or predict_proba() method 
             implemented.
-        X : pandas.DataFrame or ndarray
-            Generally X_test is advised.  Use only if X.shape[1] < 1000 to complete in a < 1 hr if < 20 features.
-            Using less nsamples can also accelerate instead of using smaller X - also consider using k_means to 
-            summarize.  You can also consider samplingSHAP instead for large datasets.
+        X_train : pandas.DataFrame or ndarray
+            Data set model was trained on.  The explainer is fit using this.
+        X_test : pandas.DataFrame or ndarray
+            The explainer predicts SHAP values for these results.  In reality, you could provide X_train again
+            here if you wanted to compute values for that set.
         use_probabilities : bool
             Use predict_proba() for model - this should only be used for classification tasks.
         nsamples : int or str
@@ -503,20 +504,20 @@ class InspectModel:
             however, these examples do not. (1) https://slundberg.github.io/shap/notebooks/Iris%20classification%20with%20scikit-learn.html,
             (2)  https://slundberg.github.io/shap/notebooks/Census%20income%20classification%20with%20scikit-learn.html.
         k_means : int
-            If > 0, use KMeans to summarize the dataset which can greatly accelerate the calculation at the cost
+            If > 0, use KMeans to summarize the training dataset which can greatly accelerate the calculation at the cost
             of accuracy.  This summarizes a dataset with k_means samples weighted by the number of data points they
             each represent.
         """
         import shap
         
         if (k_means > 0):
-            X = shap.kmeans(X, k_means)
+            X_train = shap.kmeans(X_train, k_means)
         
         explainer = shap.KernelExplainer(model=(model.predict_proba if use_probabilities else model.predict),
-                                         data=X, 
+                                         data=X_train, 
                                          link=link
                                         )
-        shap_values = explainer.shap_values(X, 
+        shap_values = explainer.shap_values(X_test, 
                                             nsamples=nsamples, 
                                             l1_reg=l1_reg, 
                                            )
@@ -524,7 +525,7 @@ class InspectModel:
         return explainer, shap_values
     
     @staticmethod
-    def treeSHAP(model, X, approximate=False, check_additivity=True):
+    def treeSHAP(model, X_train, X_test, approximate=False, check_additivity=True):
         """
         A specialized (faster) implementation of kernelSHAP for tree-based models that is EXACT, not an approximation,
         of the SHapley values.
@@ -538,7 +539,7 @@ class InspectModel:
         >>> X,y = shap.datasets.boston()
         >>> model = sklearn.ensemble.RandomForestRegressor()
         >>> model.fit(X, y) 
-        >>> explainer, shap_values, interaction_values = InspectModel.treeSHAP(model, X)
+        >>> explainer, shap_values, interaction_values = InspectModel.treeSHAP(model, X, X)
         >>> # visualize the first prediction's explanation (use matplotlib=True to avoid Javascript, but JS is more interactive)
         >>> shap.force_plot(explainer.expected_value, shap_values[0,:], X.iloc[0,:]) # Just 1 instance
         >>> shap.force_plot(explainer.expected_value, shap_values, X) # All instances, rotated 90 degrees and stacked
@@ -553,8 +554,11 @@ class InspectModel:
         model : BaseEstimator
             A fitted sklearn (or other supported) model, with a predict() and/or predict_proba() method 
             implemented.
-        X : pandas.DataFrame or ndarray
-            Generally X_test is advised.  
+        X_train : pandas.DataFrame or ndarray
+            Data set model was trained on.  The explainer is fit using this.
+        X_test : pandas.DataFrame or ndarray
+            The explainer predicts SHAP values for these results.  In reality, you could provide X_train again
+            here if you wanted to compute values for that set.
         approximate : bool
             See ``shap.TreeExplainer.shap_values``.
         check_additivity : bool
@@ -563,20 +567,20 @@ class InspectModel:
         import shap
         
         explainer = shap.TreeExplainer(model=model,
-                                       data=X,
+                                       data=X_train,
                                        feature_perturbation='tree_path_dependent' # shap_interaction_values only supported for this option at the moment
                                       )
-        shap_values = explainer.shap_values(X, 
+        shap_values = explainer.shap_values(X_test, 
                                             check_additivity=check_additivity,
                                             approximate=approximate, 
                                            )
         
-        interaction_values = explainer.shap_interaction_values(X)
+        interaction_values = explainer.shap_interaction_values(X_test)
         
         return explainer, shap_values, interaction_values
         
     @staticmethod
-    def samplingSHAP(model, X, background=None, use_probabilities=False, nsamples='auto', l1_reg=0.0,
+    def samplingSHAP(model, X_train, X_test, background=None, use_probabilities=False, nsamples='auto', l1_reg=0.0,
                   k_means=0):
         """ 
         Alternative to KernelShap.  From shap documentation: "This is an extension of the Shapley 
@@ -598,8 +602,11 @@ class InspectModel:
         model : BaseEstimator
             A fitted sklearn (or other supported) model, with a predict() and/or predict_proba() method 
             implemented.
-        X : pandas.DataFrame or ndarray
-            Data to explain.
+        X_train : pandas.DataFrame or ndarray
+            Data set model was trained on.  The explainer is fit using this.
+        X_test : pandas.DataFrame or ndarray
+            The explainer predicts SHAP values for these results.  In reality, you could provide X_train again
+            here if you wanted to compute values for that set.
         background : pandas.DataFrame or ndarray
             From shap documentation: ``The background dataset to use for integrating out features. To determine the impact
             of a feature, that feature is set to "missing" and the change in the model output
@@ -625,15 +632,15 @@ class InspectModel:
         import shap
         
         if (k_means > 0):
-            X = shap.kmeans(X, k_means)
+            X_train = shap.kmeans(X_train, k_means)
             
-        if (background == None):
-            background = X
+        if (background is None):
+            background = X_train
         
         explainer = shap.SamplingExplainer(model=(model.predict_proba if use_probabilities else model.predict),
                                          data=background
                                         )
-        shap_values = explainer.shap_values(X, 
+        shap_values = explainer.shap_values(X_test, 
                                             nsamples=nsamples, 
                                             l1_reg=l1_reg, 
                                            )
