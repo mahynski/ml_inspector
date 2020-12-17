@@ -263,6 +263,7 @@ class InspectData:
             new_ids = copy.copy(cluster_id_to_feature_ids)
             for k,v in cluster_id_to_feature_ids.items():
                 new_ids[k-1] = v
+            new_ids.pop(np.max(list(new_ids.keys())))
             cluster_id_to_feature_ids = new_ids
         elif (
             np.all(sorted(cluster_id_to_feature_ids.keys()) == np.arange(len(cluster_id_to_feature_ids)))
@@ -281,8 +282,7 @@ class InspectData:
         cutoff = int(X.shape[0]*cutoff_factor) 
         for cid, features in cluster_id_to_feature_ids.items():
             safe_features[cid] = [f for f in features if counts(f) > cutoff]
-            assert(len(safe_features) > 0), 'cutoff is too severe, no features allowed in cluster {}'.format(cid)
-
+            assert(len(safe_features) > 0), 'Cutoff is too severe, no features allowed in cluster {}'.format(cid)
 
         # Look up all features to make sure lookup() works
         categories = set()
@@ -302,6 +302,7 @@ class InspectData:
             new_choice_idx = copy.copy(choice_idx)
             cid = np.random.randint(len(new_choice_idx))
             new_choice_idx[cid] = np.random.randint(len(safe_features[cid]))
+
             return new_choice_idx
 
         def entropy(choices):
@@ -355,8 +356,6 @@ class InspectData:
                                 key=lambda x:x[1], 
                                 reverse=True)[0][0]
             final[cid] = safe_features[cid][best_idx]
-            
-                
 
         return list(final.values())
         
