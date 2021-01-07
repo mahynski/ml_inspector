@@ -7,7 +7,7 @@ import tqdm
 class InspectData:
     def __init__(self):
         pass
-    
+
     @staticmethod
     def cluster_elbow(X, clusters=range(1, 11)):
         """
@@ -21,10 +21,10 @@ class InspectData:
 
         distortions = []
         for i in clusters:
-            km = KMeans(n_clusters=i, 
-                        init='k-means++', 
-                        n_init=10, 
-                        max_iter=300, 
+            km = KMeans(n_clusters=i,
+                        init='k-means++',
+                        n_init=10,
+                        max_iter=300,
                         random_state=0)
             km.fit(X)
             distortions.append(km.inertia_)
@@ -34,28 +34,28 @@ class InspectData:
         plt.tight_layout()
 
         return plt.gca()
-    
+
     @staticmethod
     def cluster_silhouette(X, clustering):
         """
         Plot silhouette curves to assess the quality of clustering into a
-        meaningful number of clusters in **classification tasks**. Ideal silhouette 
+        meaningful number of clusters in **classification tasks**. Ideal silhouette
         coefficients are close to 1, meaning "tight" well-separated clusters.
-        
+
         See Ch. 11 of "Python Machine Learning" by Raschka & Mirjalili.
-        
+
         Example
         -------
         >>> km = KMeans(n_clusters=10,
                         init='k-means++',
                         n_init=10,
                         random_state=0)
-        >>> ml_inspector.data.InspectData.cluster_silhouette(X, clustering=km)     
+        >>> ml_inspector.data.InspectData.cluster_silhouette(X, clustering=km)
         """
         from matplotlib import cm
         from sklearn.metrics import silhouette_samples
         from sklearn import clone
-        
+
         # Clone clustering algorith, and predict clusters
         est = clone(clustering, safe=False)
         y = est.fit_predict(X)
@@ -71,14 +71,14 @@ class InspectData:
             c_silhouette_vals.sort()
             y_ax_upper += len(c_silhouette_vals)
             color = cm.jet(float(i) / n_clusters)
-            plt.barh(range(y_ax_lower, y_ax_upper), c_silhouette_vals, height=1.0, 
+            plt.barh(range(y_ax_lower, y_ax_upper), c_silhouette_vals, height=1.0,
                     edgecolor='none', color=color)
 
             yticks.append((y_ax_lower + y_ax_upper) / 2.)
             y_ax_lower += len(c_silhouette_vals)
 
         silhouette_avg = np.mean(silhouette_vals)
-        plt.axvline(silhouette_avg, color="red", linestyle="--") 
+        plt.axvline(silhouette_avg, color="red", linestyle="--")
 
         plt.yticks(yticks, cluster_labels)
         plt.ylabel('Cluster')
@@ -87,7 +87,7 @@ class InspectData:
         plt.tight_layout()
 
         return plt.gca()
-    
+
     @staticmethod
     def cluster_collinear(X, feature_names=None, figsize=None, t=None, display=True, figname=None):
         """
@@ -95,7 +95,7 @@ class InspectData:
         See https://scikit-learn.org/stable/auto_examples/inspection/plot_permutation_importance_multicollinear.html
 
         This can be used as a preprocessing step since it is unsupervised.
-        
+
         Example
         -------
         >>> from sklearn.datasets import load_breast_cancer
@@ -115,14 +115,14 @@ class InspectData:
 
         >>> # Look at multicollinearity
         >>> selected_features, cluster_id_to_feature_ids = InspectModel.cluster_collinear(X, # Can use entire dataset since this is unsupervised
-        ...                                                                                 figsize=(12, 8), 
-        ...                                                                                 display=True, 
+        ...                                                                                 figsize=(12, 8),
+        ...                                                                                 display=True,
         ...                                                                                 t=2,
         ...                                                                                 feature_names=None) # Get indices to work with
 
         >>> # Fit again just using these selected features
         >>> X_train, X_test = X_train[:,selected_features], X_test[:,selected_features]
-        >>> clf.fit(X_train, y_train) 
+        >>> clf.fit(X_train, y_train)
         >>> clf.score(X_test, y_test) # 96%, almost identical as expected
 
         >>> # Top is 'mean radius', which according to dendogram above, is highly correlated with other "size" metrics
@@ -130,7 +130,7 @@ class InspectData:
 
         Notes
         -----
-        If feature names are provided, names are returned.  Otherwise they are the indices of the 
+        If feature names are provided, names are returned.  Otherwise they are the indices of the
         columns in X.
 
         Parameters
@@ -162,7 +162,7 @@ class InspectData:
             naming = lambda i:i
         else:
             feature_names = list(feature_names) # Needs to be a list for compatibility elsewhere
-            naming = lambda i:feature_names[i] 
+            naming = lambda i:feature_names[i]
 
         corr = spearmanr(X).correlation
         corr_linkage = hierarchy.ward(corr)
@@ -208,17 +208,17 @@ class InspectData:
                 fig.tight_layout()
 
         return selected_features, cluster_id_to_feature_ids
-    
+
     def minimize_cluster_label_entropy(cluster_id_to_feature_ids, lookup, X, cutoff_factor=0.9,
                                   n_restarts=1, max_iters=1000, seed=0, early_stopping=-1, T=0.25):
         """
-        Minimize the entropy of selected features based on hierarchical clustering according to 
+        Minimize the entropy of selected features based on hierarchical clustering according to
         some labeling scheme that categorizes them.  For example, lookup('mercury') = 'Heavy Metal'.
         This routine performs Metropolis Monte Carlo to minimize the entropy of the system defined
         by the categories of all features selected from each cluster.  Features are only considered
         viable if they appear in the input X DataFrame (not NaN values) at least 100*cutoff_factor
         percent of the time.
-        
+
         This can be used to improve selections made at random by cluster_collinear().
 
         Example
@@ -255,7 +255,7 @@ class InspectData:
         """
         import copy
         np.random.seed(seed)
-        
+
         # Python's default behavior is specify clusters starting from 1 not 0, so change that
         if (
             np.all(sorted(cluster_id_to_feature_ids.keys()) == np.arange(1, 1+len(cluster_id_to_feature_ids)))
@@ -271,7 +271,7 @@ class InspectData:
             pass
         else:
             raise Exception('Cluster ID ordering not understood')
-            
+
 
         if (early_stopping <= 0):
             early_stopping = max_iters + 1
@@ -279,7 +279,7 @@ class InspectData:
         # Determine which features are "safe" to use on the basis of a minimum number of observations
         safe_features = {}
         counts = lambda f: X.shape[0] - X[f].isnull().sum() # X is the pandas DataFrame
-        cutoff = int(X.shape[0]*cutoff_factor) 
+        cutoff = int(X.shape[0]*cutoff_factor)
         for cid, features in cluster_id_to_feature_ids.items():
             safe_features[cid] = [f for f in features if counts(f) > cutoff]
             assert(len(safe_features) > 0), 'Cutoff is too severe, no features allowed in cluster {}'.format(cid)
@@ -294,7 +294,7 @@ class InspectData:
 
         def random_choices(safe_features):
             choice_idx = {}
-            for cid, features in safe_features.items(): 
+            for cid, features in safe_features.items():
                 choice_idx[cid] = np.random.randint(len(features))
             return choice_idx
 
@@ -347,34 +347,34 @@ class InspectData:
             # 3. Compare across restarts
             if best[0] < best_overall[0]:
                 best_overall = best
-                
+
         # 4. Go over list and perform final optimization, choosing alternatives of the same class
         # that were the MOST often measured, not just AT LEAST some minimum.
         final = {}
         for cid, feat in convert(best_overall[1], safe_features).items():
-            best_idx = sorted([(i, counts(f)) for i,f in enumerate(safe_features[cid]) if lookup(feat) == lookup(f)], 
-                                key=lambda x:x[1], 
+            best_idx = sorted([(i, counts(f)) for i,f in enumerate(safe_features[cid]) if lookup(feat) == lookup(f)],
+                                key=lambda x:x[1],
                                 reverse=True)[0][0]
             final[cid] = safe_features[cid][best_idx]
 
         return list(final.values())
-        
+
     @staticmethod
     def pairplot(df, figname=None, **kwargs):
         """
         A pairplot of the data.  Best to use after dimensionality reduction has been performed,
         e.g., using cluster_collinear() to select only certain features.  This can be helpful
         to visualize how decorrelated the selected dimensions truly are.
-        
+
         See https://seaborn.pydata.org/generated/seaborn.pairplot.html.
-        
+
         Parameters
         ----------
         df : DataFrame
             DataFrame with (dense) X predictors.  It may or may not contain a column
             for the predictin target.  For classification tasks, this can be visualized
             using 'hue' as shown below.
-        
+
         Example
         -------
         >>> from sklearn.datasets import load_breast_cancer

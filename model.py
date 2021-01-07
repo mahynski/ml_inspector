@@ -44,7 +44,7 @@ class Compare:
             rkf = RepeatedStratifiedKFold(n_splits=k, n_repeats=n_repeats, random_state=random_state)
         else:
             rkf = RepeatedKFold(n_splits=k, n_repeats=n_repeats, random_state=random_state)
-        
+
         X = np.array(X)
         y = np.array(y)
 
@@ -53,7 +53,7 @@ class Compare:
         for train_index, test_index in rkf.split(X):
             X_train, X_test = X[train_index], X[test_index]
             y_train, y_test = y[train_index], y[test_index]
-            
+
             pipe1.fit(X_train, y_train)
             scores1.append(pipe1.score(X_test, y_test))
 
@@ -96,7 +96,7 @@ class Compare:
         rho = 1.0/k_fold
         performance_diffs = np.array(scores1) - np.array(scores2) # H1: mu > 0
         corrected_t = (np.mean(performance_diffs) - 0.0) / np.sqrt((1.0/n + rho/(1.0-rho))*(np.std(performance_diffs, ddof=1)**2))
-        
+
         return 1.0 - scipy.stats.t.cdf(x=corrected_t, df=n-1) # 1-sided test
 
 
@@ -135,13 +135,13 @@ class Compare:
 
         if (rope == 0):
             probs = np.array([probs[0], 0, probs[1]])
-        
+
         return probs > (1.0-alpha), probs
 
 class InspectModel:
     def __init__(self):
         pass
-    
+
     @staticmethod
     def confusion_matrix(model, X, y_true):
         """
@@ -154,13 +154,13 @@ class InspectModel:
         confmat = confusion_matrix(y_true=y_true, y_pred=model.predict(X))
 
         fig = plt.figure()
-        _ = sns.heatmap(confmat, ax=plt.gca(), annot=True, xticklabels=model.classes_, 
+        _ = sns.heatmap(confmat, ax=plt.gca(), annot=True, xticklabels=model.classes_,
                         yticklabels=model.classes_)
         plt.xlabel("Predicted")
         plt.ylabel("Actual")
 
         return plt.gca()
-    
+
     @staticmethod
     def roc_curve(model, X, y, n_splits=10):
         """
@@ -221,8 +221,8 @@ class InspectModel:
     @staticmethod
     def learning_curve(self, model, X, y, train_sizes=np.linspace(0.1, 1, 10), cv=10):
         """
-        For diagnosing bias/variance issues in a model. 
-        The validation and training accuracy curves should converge "quickly" 
+        For diagnosing bias/variance issues in a model.
+        The validation and training accuracy curves should converge "quickly"
         (if not, high variance) and to a "high" accuracy (if not, high bias).
         If it doesn't converge, it probably needs more data to train on.
 
@@ -277,11 +277,11 @@ class InspectModel:
         plt.tight_layout()
 
         return plt.gca()
-    
+
     @staticmethod
     def plot_residuals(y_true, y_pred):
         """
-        Plot residuals and fit to a Gaussian distribution.  A good fit might indicate all 
+        Plot residuals and fit to a Gaussian distribution.  A good fit might indicate all
         predictive "information" has been extracted and the remaining uncertainty
         is due to random noise.
 
@@ -299,28 +299,28 @@ class InspectModel:
             sns.jointplot(x=y_true[:,i], y=y_pred[:,i], kind='resid')
 
         return plt.gca()
-    
+
     @staticmethod
     def pdp(model, X, features, **kwargs):
         """
         Partial dependence plots for features in X.
-        
-        Partial dependence plots (PDP) show the dependence between the target response 
-        and a set of target features, marginalizing over the values of all other features (the complement 
-        features). Intuitively, we can interpret the partial dependence as the expected target response 
+
+        Partial dependence plots (PDP) show the dependence between the target response
+        and a set of target features, marginalizing over the values of all other features (the complement
+        features). Intuitively, we can interpret the partial dependence as the expected target response
         as a function of the target features.
-        
-        One-way PDPs tell us about the interaction between the target response and the target feature 
-        (e.g. linear, non-linear). Note that PDPs **assume that the target features are independent** from 
-        the complement features, and this assumption is often violated in practice.  If correlated 
+
+        One-way PDPs tell us about the interaction between the target response and the target feature
+        (e.g. linear, non-linear). Note that PDPs **assume that the target features are independent** from
+        the complement features, and this assumption is often violated in practice.  If correlated
         features can be reduced, these might be more meaningful.
 
         PDPs with two target features show the interactions among the two features.
-        
+
         Notes
         -----
         See `sklearn.inspection.plot_partial_dependence`.
-        
+
         Example
         -------
         >>> from sklearn.datasets import make_hastie_10_2
@@ -330,14 +330,14 @@ class InspectModel:
         >>> X, y = make_hastie_10_2(random_state=0)
         >>> clf = GradientBoostingClassifier(n_estimators=100, learning_rate=1.0, max_depth=1, random_state=0).fit(X, y)
         >>> features = [0, 1, (0, 1)]
-        >>> InspectModel.pdp(clf, X, features) 
-        
+        >>> InspectModel.pdp(clf, X, features)
+
         Parameters
         ----------
         model : BaseEstimator
             A fitted sklearn estimator.
         X : array-like, shape (n_samples, n_features)
-            Dense grid used to build the grid of values on which the dependence will be evaluated. 
+            Dense grid used to build the grid of values on which the dependence will be evaluated.
             **This is usually the training data.**
         features : list of {int, str, pair of int, pair of str}
             The target features for which to create the PDPs.
@@ -346,49 +346,49 @@ class InspectModel:
             of size 2.
         """
         from sklearn.inspection import plot_partial_dependence
-        return plot_partial_dependence(model, X, features, **kwargs) 
-    
+        return plot_partial_dependence(model, X, features, **kwargs)
+
     @staticmethod
     def pfi(model, X, y, n_repeats=30, feature_names=None, visualize=False):
         """
-        Permutation feature importance is a model inspection technique that can be used for any 
-        fitted estimator **when the data is tabular.** The permutation feature importance is defined 
+        Permutation feature importance is a model inspection technique that can be used for any
+        fitted estimator **when the data is tabular.** The permutation feature importance is defined
         to be the decrease in a model score when a single feature value is randomly shuffled.
         It is indicative of **how much the model depends on the feature.**
-        
-        Can be computed on the training and/or test set (better).  There is some disagreement about which is 
-        actually better.  Sklearn says that: "Permutation importances can be computed either on the 
-        training set or on a held-out testing or validation set. Using a held-out set makes it possible 
-        to highlight which features contribute the most to the **generalization power** of the inspected model. 
-        Features that are important on the training set but not on the held-out set might cause the model 
+
+        Can be computed on the training and/or test set (better).  There is some disagreement about which is
+        actually better.  Sklearn says that: "Permutation importances can be computed either on the
+        training set or on a held-out testing or validation set. Using a held-out set makes it possible
+        to highlight which features contribute the most to the **generalization power** of the inspected model.
+        Features that are important on the training set but not on the held-out set might cause the model
         to overfit."
-        
-        **Features that are deemed of low importance for a bad model (low cross-validation score) could be 
+
+        **Features that are deemed of low importance for a bad model (low cross-validation score) could be
         very important for a good model.**  The pfi is only important if the model itself is good.
-        
+
         The sums of the pfi should roughly add up to the model's accuracy (or whatever score metric is used),
-        if the features are independent, however, unlike Shapley values, this will not be exact. In other 
+        if the features are independent, however, unlike Shapley values, this will not be exact. In other
         words: results[results['95% CI > 0']]['Mean'].sum() / model.score(X_val, y_val) ~ 1.
-        
-        ``The importance measure automatically takes into account all interactions with other features. 
-        By permuting the feature you also destroy the interaction effects with other features. This means that the 
-        permutation feature importance takes into account both the main feature effect and the interaction effects 
-        on model performance. This is also a disadvantage because the importance of the interaction between two 
-        features is included in the importance measurements of both features. This means that the feature 
-        importances do not add up to the total drop in performance, but the sum is larger. Only if there is no 
+
+        ``The importance measure automatically takes into account all interactions with other features.
+        By permuting the feature you also destroy the interaction effects with other features. This means that the
+        permutation feature importance takes into account both the main feature effect and the interaction effects
+        on model performance. This is also a disadvantage because the importance of the interaction between two
+        features is included in the importance measurements of both features. This means that the feature
+        importances do not add up to the total drop in performance, but the sum is larger. Only if there is no
         interaction between the features, as in a linear model, the importances add up approximately.''
          - https://christophm.github.io/interpretable-ml-book/feature-importance.html
-        
+
         For further advantages of pfi, see https://scikit-learn.org/stable/modules/permutation_importance.html.
         One of particular note is that pfi place too much emphasis on unrealistic inputs; this is because
         permuting features breaks correlations between features.  If you can remove those correlations
         (see Note below) then pfi's are more meaningful.
-        
+
         Note
         ----
-        When two features are correlated and one of the features is permuted, the model will still have 
-        access to the feature through its correlated feature. This will result in a lower importance value 
-        for both features, where they might actually be important.  One way to solve this is to cluster 
+        When two features are correlated and one of the features is permuted, the model will still have
+        access to the feature through its correlated feature. This will result in a lower importance value
+        for both features, where they might actually be important.  One way to solve this is to cluster
         correlated features and take only 1. **See `InspectData.cluster_collinear` for example.**
         """
         from sklearn.inspection import permutation_importance
@@ -399,52 +399,52 @@ class InspectModel:
         for i in r.importances_mean.argsort()[::-1]:
             results.append([naming(i), r.importances_mean[i], r.importances_std[i], r.importances_mean[i]-2.0*r.importances_std[i] > 0])
         results = pd.DataFrame(data=results, columns=['Name or Index', 'Mean', 'Std', '95% CI > 0'])
-        
+
         if visualize:
             perm_sorted_idx = r.importances_mean.argsort()
             plt.boxplot(r.importances[perm_sorted_idx].T, vert=False,
                         labels=feature_names[perm_sorted_idx])
-            
+
         return results
-    
+
     @staticmethod
     def kernelSHAP(model, X_train, X_test, use_probabilities=False, nsamples='auto', l1_reg=0.0, link='identity',
                   k_means=0):
         """
         Kernel SHAP (SHapley Additive exPlanations) is a way of estimating Shapley values using regression.
-        
+
         Shapley values themselves are feature importances for linear models in the presence of multicollinearity.
         The importance of a feature is computed by adding to all subsets of coalitions of other features; when
         one or more collinear features are present, a features impact would be small, but there are lots of subsets
         where those collinear features are absent from the initial coalition, thus capturing (to some extent) this
         effect.
-        
-        As in PFI, it is best to try to remove correlated features first using hierarchical clustering; this will 
+
+        As in PFI, it is best to try to remove correlated features first using hierarchical clustering; this will
         make things easier computationally anyway.
-        
-        ``The fast computation makes it possible to compute the many Shapley values needed for the global 
-        model interpretations. The global interpretation methods include feature importance, feature 
-        dependence, interactions, clustering and summary plots. With SHAP, global interpretations are 
-        consistent with the local explanations, since the Shapley values are the "atomic unit" of the 
-        global interpretations. If you use LIME for local explanations and partial dependence plots plus 
+
+        ``The fast computation makes it possible to compute the many Shapley values needed for the global
+        model interpretations. The global interpretation methods include feature importance, feature
+        dependence, interactions, clustering and summary plots. With SHAP, global interpretations are
+        consistent with the local explanations, since the Shapley values are the "atomic unit" of the
+        global interpretations. If you use LIME for local explanations and partial dependence plots plus
         permutation feature importance for global explanations, you lack a common foundation.''
          - https://christophm.github.io/interpretable-ml-book/shap.html
-        
+
         For notes and help interpreting the results, see:
         * https://github.com/slundberg/shap
         * https://christophm.github.io/interpretable-ml-book/shap.html
-        
+
         Notes
         -----
-        ``Shapley values are the only solution that satisfies properties of Efficiency, Symmetry, Dummy and 
+        ``Shapley values are the only solution that satisfies properties of Efficiency, Symmetry, Dummy and
         Additivity. SHAP also satisfies these, since it computes Shapley values.
-        
-        Be careful to interpret the Shapley value correctly: The Shapley value is the average contribution of a 
-        feature value to the prediction in different coalitions. The Shapley value is NOT the difference in 
+
+        Be careful to interpret the Shapley value correctly: The Shapley value is the average contribution of a
+        feature value to the prediction in different coalitions. The Shapley value is NOT the difference in
         prediction when we would remove the feature from the model.''
-        
+
         - https://christophm.github.io/interpretable-ml-book/shap.html
-        
+
         Examples
         --------
         # 1. A classification model with probabilities
@@ -463,14 +463,14 @@ class InspectModel:
 
         >>> # dependence_plot are not defined for probabilistic models
         >>> # summary_plot is always a bar plot if using a probabilistic model
-        >>> shap.summary_plot(shap_values, X_test) 
-        
+        >>> shap.summary_plot(shap_values, X_test)
+
         # 2. A regression model
         >>> import shap, sklearn
         >>> shap.initjs() # load JS visualization code to notebook
         >>> X,y = shap.datasets.boston()
         >>> model = sklearn.ensemble.RandomForestRegressor()
-        >>> model.fit(X, y) 
+        >>> model.fit(X, y)
         >>> explainer, shap_values = InspectModel.kernelSHAP(model, X, X, nsamples=100)
         >>> # visualize the first prediction's explanation (use matplotlib=True to avoid Javascript, but JS is more interactive)
         >>> shap.force_plot(explainer.expected_value, shap_values[0,:], X.iloc[0,:]) # Just 1 instance
@@ -480,11 +480,11 @@ class InspectModel:
         >>> # summarize the effects of all the features
         >>> shap.summary_plot(shap_values, X)
         >>> shap.summary_plot(shap_values, X, plot_type="bar")
-        
+
         Parameters
         ----------
         model : BaseEstimator
-            A fitted sklearn (or other supported) model, with a predict() and/or predict_proba() method 
+            A fitted sklearn (or other supported) model, with a predict() and/or predict_proba() method
             implemented.
         X_train : pandas.DataFrame or ndarray
             Data set model was trained on.  The explainer is fit using this.
@@ -509,36 +509,36 @@ class InspectModel:
             each represent.
         """
         import shap
-        
+
         if (k_means > 0):
             X_train = shap.kmeans(X_train, k_means)
-        
+
         explainer = shap.KernelExplainer(model=(model.predict_proba if use_probabilities else model.predict),
-                                         data=X_train, 
+                                         data=X_train,
                                          link=link
                                         )
-        shap_values = explainer.shap_values(X_test, 
-                                            nsamples=nsamples, 
-                                            l1_reg=l1_reg, 
+        shap_values = explainer.shap_values(X_test,
+                                            nsamples=nsamples,
+                                            l1_reg=l1_reg,
                                            )
-        
+
         return explainer, shap_values
-    
+
     @staticmethod
     def treeSHAP(model, X_train, X_test, approximate=False, check_additivity=True):
         """
         A specialized (faster) implementation of kernelSHAP for tree-based models that is EXACT, not an approximation,
         of the SHapley values.
-        
+
         See Lundberg et al. "From local explanations to global understanding with explainable AI for trees" Nat. Mach. Intell. (2020)
-        
+
         Example
         -------
         >>> import shap
         >>> shap.initjs() # load JS visualization code to notebook
         >>> X,y = shap.datasets.boston()
         >>> model = sklearn.ensemble.RandomForestRegressor()
-        >>> model.fit(X, y) 
+        >>> model.fit(X, y)
         >>> explainer, shap_values, interaction_values = InspectModel.treeSHAP(model, X, X)
         >>> # visualize the first prediction's explanation (use matplotlib=True to avoid Javascript, but JS is more interactive)
         >>> shap.force_plot(explainer.expected_value, shap_values[0,:], X.iloc[0,:]) # Just 1 instance
@@ -552,7 +552,7 @@ class InspectModel:
         Parameters
         ----------
         model : BaseEstimator
-            A fitted sklearn (or other supported) model, with a predict() and/or predict_proba() method 
+            A fitted sklearn (or other supported) model, with a predict() and/or predict_proba() method
             implemented.
         X_train : pandas.DataFrame or ndarray
             Data set model was trained on.  The explainer is fit using this.
@@ -565,42 +565,42 @@ class InspectModel:
             See ``shap.TreeExplainer.shap_values``.
         """
         import shap
-        
+
         explainer = shap.TreeExplainer(model=model,
                                        data=X_train,
                                        feature_perturbation='tree_path_dependent' # shap_interaction_values only supported for this option at the moment
                                       )
-        shap_values = explainer.shap_values(X_test, 
+        shap_values = explainer.shap_values(X_test,
                                             check_additivity=check_additivity,
-                                            approximate=approximate, 
+                                            approximate=approximate,
                                            )
-        
+
         interaction_values = explainer.shap_interaction_values(X_test)
-        
+
         return explainer, shap_values, interaction_values
-        
+
     @staticmethod
     def samplingSHAP(model, X_train, X_test, background=None, use_probabilities=False, nsamples='auto', l1_reg=0.0,
                   k_means=0):
-        """ 
-        Alternative to KernelShap.  From shap documentation: "This is an extension of the Shapley 
-        sampling values explanation method (aka. IME) SamplingExplainer computes SHAP values under 
-        the assumption of feature independence and is an extension of the algorithm proposed in 
-        "An Efficient Explanation of Individual Classifications using Game Theory", Erik Strumbelj, 
-        Igor Kononenko, JMLR 2010. It is a good alternative to KernelExplainer when you want to use 
+        """
+        Alternative to KernelShap.  From shap documentation: "This is an extension of the Shapley
+        sampling values explanation method (aka. IME) SamplingExplainer computes SHAP values under
+        the assumption of feature independence and is an extension of the algorithm proposed in
+        "An Efficient Explanation of Individual Classifications using Game Theory", Erik Strumbelj,
+        Igor Kononenko, JMLR 2010. It is a good alternative to KernelExplainer when you want to use
         a large background set (as opposed to a single reference value for example)."
-        
-        It is important to note that this approximation method of Shapley values requires the assumption of 
-        feature independence; furthermore, kernelSHAP is allegedly more computationally efficient. 
-        
+
+        It is important to note that this approximation method of Shapley values requires the assumption of
+        feature independence; furthermore, kernelSHAP is allegedly more computationally efficient.
+
         - Lundberg & Lee "A unified approach to interpreting model predictions" NIPS (2017)
- 
+
         See ``shap.SamplingExplainer`` for more details.
-        
+
         Parameters
         ----------
         model : BaseEstimator
-            A fitted sklearn (or other supported) model, with a predict() and/or predict_proba() method 
+            A fitted sklearn (or other supported) model, with a predict() and/or predict_proba() method
             implemented.
         X_train : pandas.DataFrame or ndarray
             Data set model was trained on.  The explainer is fit using this.
@@ -630,31 +630,30 @@ class InspectModel:
             each represent.
         """
         import shap
-        
+
         if (k_means > 0):
             X_train = shap.kmeans(X_train, k_means)
-            
+
         if (background is None):
             background = X_train
-        
+
         explainer = shap.SamplingExplainer(model=(model.predict_proba if use_probabilities else model.predict),
                                          data=background
                                         )
-        shap_values = explainer.shap_values(X_test, 
-                                            nsamples=nsamples, 
-                                            l1_reg=l1_reg, 
+        shap_values = explainer.shap_values(X_test,
+                                            nsamples=nsamples,
+                                            l1_reg=l1_reg,
                                            )
-        
+
         return explainer, shap_values
-        
+
     @staticmethod
     def deepSHAP():
         """ Deep Neural Nets """
         raise NotImplementedError
-        
+
     @staticmethod
     def LIME():
         # https://github.com/marcotcr/lime
         # https://christophm.github.io/interpretable-ml-book/lime.html
         raise NotImplementedError
-        
