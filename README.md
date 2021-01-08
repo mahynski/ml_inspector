@@ -8,8 +8,9 @@ A growing collection of different simple python functions to inspect machine lea
 [![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
 
 ## Installation
+
 ~~~ bash
-$ git clone https://gitlab.nist.gov/gitlab/nam4/ml_inspector.git
+$ git clone https://github.com/mahynski/ml_inspector.git
 $ pip install -r requirements.txt
 ~~~
 
