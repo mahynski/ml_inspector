@@ -15,6 +15,11 @@ $ pip install -r requirements.txt
 
 Simply add this directory to your PYTHONPATH, or locally in each instance (i.e., sys.path.append()) and import the model as usual.
 
+~~~ bash
+$ echo 'export PYTHONPATH=$PYTHONPATH:/path/to/module/' >> ~/.bashrc
+$ source ~/.bashrc
+~~~
+
 ~~~ python
 import ml_inspector
 ~~~
