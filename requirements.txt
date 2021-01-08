@@ -1,8 +1,9 @@
+baycomp
+matplotlib
+nodejs
 numpy
 pandas
-matplotlib
+scipy
 seaborn
-sklearn
 shap
-nodejs
-baycomp
+sklearn
