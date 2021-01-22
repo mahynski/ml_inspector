@@ -2,10 +2,12 @@
 Examine ML models.
 
 A collection of tools, from various sources, for inspection of machine learning
-models.  Attribution to original sources are made available when appropriate.
+models.  Attribution to original sources is made available when appropriate.
 
 @author: nam
 """
+import math
+
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.stats
@@ -27,6 +29,76 @@ class Compare:
     def __init__(self):
         """Initialize the class."""
         pass
+
+    def visualize(self, results, n_repeats, alpha=0.05):
+        """
+        Plot a radial graph of performances for different pipelines.
+
+        When nested k-fold or repeated k-fold tests on different pipelines
+        has been done, plot the mean and standard deviation of them from best
+        (average) to worst.  These should be done on the same splits of data.
+        A corrected, paired t-test is then performed and pipelines that we
+        fail to reject H0 for (they perform the same as best) are colored via
+        a colormap, whereas those that we do reject (performs worse than best)
+        are colored in gray.
+
+        Parameters
+        ----------
+        results : dict(list)
+            Dictionary of results for different pipelines evaluated on the same
+            folds of data.  For example {'pipe1':[0.7, 0.5, 0.8], 'pipe2':[0.5,
+            0.6,0.35]}.
+        n_repeats : int
+            Number of times k-fold was repeated; k is inferred from the overall
+            length based on this.
+        alpha : float
+            Significance level.
+        """
+
+        def perf(results, n_repeats, alpha=0.05):
+            order = sorted(
+                results, key=lambda k: np.mean(results[k]), reverse=True
+            )
+            performances = [
+                [k, np.mean(results[k]), np.std(results[k]), False]
+                for k in order
+            ]
+
+            for i in range(1, len(performances)):
+                p = self.corrected_t(
+                    results[order[0]], results[order[i]], n_repeats=n_repeats
+                )
+                # Do we REJECT H0 (that pipelines perform the same) ?
+                performances[i][-1] = p < alpha
+
+            return performances
+
+        performances = perf(results, alpha=alpha)
+
+        chart = plt.subplot(projection="polar")
+        for i, p in enumerate(performances):
+            if not p[-1]:  # REJECT H0, so pipeline 1 DOES outperform this one
+                color = plt.cm.viridis((1.0 + i) / len(performances))
+                hue = 1.0
+            else:
+                color = "gray"
+                hue = 0.5
+            _ = chart.barh(
+                len(performances) - 1 - i,
+                math.radians(p[1] * 360),
+                label=p[0],
+                xerr=math.radians(p[2] * 360),
+                alpha=hue,
+                color=color,
+            )
+            _ = chart.set_xticks(np.linspace(0, 0.9, 10) * 2.0 * np.pi)
+            _ = chart.set_xticklabels(
+                ["%.2f" % t for t in np.linspace(0.0, 0.9, 10)]
+            )
+            _ = chart.set_yticks([i for i in range(len(performances))])
+            _ = chart.set_yticklabels([])
+            _ = chart.set_title("Score +/- " + r"$\sigma$")
+            _ = chart.legend(loc="best", bbox_to_anchor=(2.0, 0.5, 0.5, 0.5))
 
     def repeated_kfold(
         pipe1, pipe2, X, y, n_repeats=3, k=5, random_state=0, stratify=True
@@ -115,7 +187,7 @@ class Compare:
         scores2 : array-like
             List of scores from pipeline 2.
         n_repeats : int
-            Number of times cross-validator was repeated.
+            Number of times k-fold was repeated.
 
         Returns
         -------
