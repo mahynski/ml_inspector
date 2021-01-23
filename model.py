@@ -30,7 +30,8 @@ class Compare:
         """Initialize the class."""
         pass
 
-    def visualize(self, results, n_repeats, alpha=0.05):
+    @staticmethod
+    def visualize(results, n_repeats, alpha=0.05):
         """
         Plot a radial graph of performances for different pipelines.
 
@@ -55,7 +56,7 @@ class Compare:
             Significance level.
         """
 
-        def perf(results, n_repeats, alpha=0.05):
+        def perf(results, n_repeats, alpha):
             order = sorted(
                 results, key=lambda k: np.mean(results[k]), reverse=True
             )
@@ -65,15 +66,15 @@ class Compare:
             ]
 
             for i in range(1, len(performances)):
-                p = self.corrected_t(
-                    results[order[0]], results[order[i]], n_repeats=n_repeats
+                p = Compare.corrected_t(
+                    results[order[0]], results[order[i]], n_repeats
                 )
                 # Do we REJECT H0 (that pipelines perform the same) ?
                 performances[i][-1] = p < alpha
 
             return performances
 
-        performances = perf(results, alpha=alpha)
+        performances = perf(results, n_repeats=n_repeats, alpha=alpha)
 
         chart = plt.subplot(projection="polar")
         for i, p in enumerate(performances):
@@ -100,6 +101,7 @@ class Compare:
             _ = chart.set_title("Score +/- " + r"$\sigma$")
             _ = chart.legend(loc="best", bbox_to_anchor=(2.0, 0.5, 0.5, 0.5))
 
+    @staticmethod
     def repeated_kfold(
         pipe1, pipe2, X, y, n_repeats=3, k=5, random_state=0, stratify=True
     ):
@@ -162,6 +164,7 @@ class Compare:
 
         return scores1, scores2
 
+    @staticmethod
     def corrected_t(scores1, scores2, n_repeats):
         """
         Perform corrected 1-sided t-test to compare two pipelines.
@@ -210,6 +213,7 @@ class Compare:
 
         return 1.0 - scipy.stats.t.cdf(x=corrected_t, df=n - 1)  # 1-sided test
 
+    @staticmethod
     def bayesian_comparison(scores1, scores2, n_repeats, alpha, rope=0):
         """
         Bayesian comparison between pipelines to assess relative performance.
