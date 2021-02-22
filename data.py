@@ -263,6 +263,7 @@ class InspectData:
             _ = ax2.set_title("Spearman Rank-Order Correlations")
 
             if figname is not None:
+                fig.tight_layout()
                 plt.savefig(figname, dpi=300, bbox_inches="tight")
             else:
                 fig.tight_layout()
